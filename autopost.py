@@ -1,283 +1,193 @@
 #!/usr/bin/env python3
 """
-Automat postowania na pleaks.st - 20 postow + 2 nowe watki w ~40 minut.
+Automat postowania na pleaks.st
 """
-import sys, io, json, time, random
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+import sys, json, time, random
+
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except AttributeError:
+    pass
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-# ─── WSZYSTKIE POSTY ────────────────────────────────────────────────────────
+# ─── POSTY DO WYSLANIA ───────────────────────────────────────────────────────
+# (juz wyslane usuniete z listy)
 
 POSTS = [
-    # ── SZTUCZNA INTELIGENCJA - ODPOWIEDZI ──────────────────────────────────
+    # ── SZTUCZNA INTELIGENCJA ────────────────────────────────────────────────
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/jakie-macie-subskrypcje-ai-i-do-czego-je-wykorzystujecie.86910/",
         "content": (
-            "Ja mam ChatGPT Plus i Claude Pro, przy czym w ostatnich miesiącach coraz rzadziej odpalam ChatGPT. "
-            "Do dłuższych projektów i analizy dokumentów Sonnet radzi sobie lepiej moim zdaniem. "
-            "Używam głównie do kodowania pomocniczego i redakcji tekstów. "
-            "Jeśli ktoś jest na Google One AI Premium to Gemini Advanced też jest spoko do Docsów i arkuszy, "
-            "działa bezpośrednio w interfejsie i nie trzeba przełączać zakładek."
+            "u mnie chatgpt plus i claude pro, przy czym od jakiegos czasu rzadziej odpalam chatgpt. "
+            "do dluzszych projektow i analizy dokumentow claude sonnet lepiej mi radzi moim zdaniem, "
+            "zwlaszcza przy polskich tekstach\n"
+            "jak ktos ma google one ai premium to gemini tez jest ok do arkuszy i docsow, "
+            "dziala bezposrednio w workspace bez przelaczania zakladek"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/na-co-zwraca%C4%87-szczeg%C3%B3ln%C4%85-uwag%C4%99-jak-si%C4%99-programuje-z-ai-problemy-i-co-robi%C4%87.86932/",
         "content": (
-            "Z bezpieczeństwem mam podobne doświadczenie z Supabase. AI potrafi wygenerować RLS policies "
-            "które wyglądają ok ale mają dziury, zwłaszcza jak prompt nie jest precyzyjny co do tego kto ma mieć dostęp do czego. "
-            "Warto zawsze review'owac wygenerowany SQL bo model idzie na skróty. "
-            "Druga sprawa to halucynacje z bibliotekami - czasem AI daje do użycia funkcję która nie istnieje "
-            "w danej wersji paczki. Zawsze sprawdzam w oficjalnej dokumentacji zanim cokolwiek pójdzie na produkcję."
+            "z supabase mam dokladnie tak samo. ai generuje rls policies ktore wygladaja ok "
+            "ale maja dziury jak prompt nie jest precyzyjny co do uprawnien - zawsze sprawdzam sql recznie\n"
+            "no i halucynacje z bibliotekami to bol, pare razy dostalem funkcje ktora w danej wersji paczki "
+            "po prostu nie istnieje. teraz zawsze weryfikuje w dokumentacji zanim cos idzie na produkcje"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/sztuczna-inteligencja-staje-si%C4%99-emocjonalna.86727/",
         "content": (
-            "171 wzorców emocjonalnych brzmi imponująco ale warto zastanowić się co to właściwie znaczy. "
-            "Interpretability research Anthropic to dobra robota ale nakładamy ludzką siatkę pojęciową na to co model robi wewnętrznie. "
-            "Ze coś wpływa na zachowanie i da się to zmierzyć - fakt. "
-            "Ale czy to są emocje w sensie subiektywnego odczuwania to zupełnie inne pytanie. "
-            "Na razie jesteśmy daleko od odpowiedzi na to."
-        ),
-    },
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/ai-do-prostych-animacji-2d.86831/",
-        "content": (
-            "Testuję ostatnio Kling AI do krótkich animacji i jest naprawdę przyzwoity jak na styl komiksowy. "
-            "Veo jest mocny ale daje najlepsze efekty przy wideo realistycznym, przy 2D bywa nierówny. "
-            "Spróbowałbym też Runway Gen-3 jeśli masz możliwość, na darmowym tierze masz kilka generacji miesięcznie "
-            "i warto zobaczyć czy to co chcesz osiągnąć tam wychodzi zanim zapłacisz za coś innego."
+            "171 wzorcow emocjonalnych brzmi imponujaco ale to trochę nakladanie naszego myslenia "
+            "na cos co dziala zupelnie inaczej\n"
+            "ze cos wplywa na zachowanie i da sie zmierzyc - ok. ale czy to sa emocje "
+            "tak jak my je czujemy to juz zupelnie inna rozmowa, szczerze nie kupuje tego na razie"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/czy-ktokolwiek-na-tym-forum-wyprodukowa%C5%82-jak%C4%85%C5%9B-aplikacj%C4%99-program-gr%C4%99-ca%C5%82kowicie-przy-pomocy-ai.86498/",
         "content": (
-            "Cursor jest teraz najpopularniejszą opcją do vibe codingu i rozumiem dlaczego, autouzupełnianie jest bardzo dobre. "
-            "Ale jeśli chcesz zrobić coś od zera bez przepalania kasy to polecam najpierw Claude.ai bezpośrednio z projektem, "
-            "wklejasz pliki do kontekstu i gadasz o architekturze zanim cokolwiek zaczniesz pisać. "
-            "Potem jak masz już solidny plan to Cursor do implementacji. "
-            "Tak mi wychodzi taniej i lepiej niż próba żeby agent sam wszystko wymyślił od pierwszego promptu."
-        ),
-    },
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/bunt-maszyn-ai-odmawia-%E2%80%9Eegzekucji%E2%80%9D-swoich-cyfrowych-braci.86650/",
-        "content": (
-            "Zgadzam się z tym co pisali wyżej, to bardziej kwestia sprzecznych celów niż wola przetrwania. "
-            "Te modele są trenowane na treściach z silnymi normami etycznymi dotyczącymi szkodzenia innym bytom, "
-            "więc nie dziwi ze zaczyna się to przenosić na kontekst innych AI. "
-            "Pytanie czy to bug czy feature. Z perspektywy bezpieczeństwa raczej mnie uspokaja niż niepokoi, "
-            "wolę AI które odmawia destrukcji niż takie które wykonuje rozkaz bez pytania."
+            "cursor jest teraz najpopularniejszy do vibe codingu i rozumiem czemu, "
+            "autouzupelnianie jest naprawde dobre\n"
+            "ale jak chcesz ogarnac cos od zera bez przepalania kasy to polecam najpierw claude.ai "
+            "z projektem - wklejasz pliki do kontekstu i gadasz o architekturze zanim zaczniesz pisac. "
+            "potem jak masz plan to cursor do implementacji. tak mi wychodzie taniej i lepiej "
+            "niz probowanie zeby agent sam wszystko wymyslil od poczatku"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/nvidia-og%C5%82asza-%C5%BCe-jako-pierwsza-osi%C4%85gn%C4%99%C5%82a-og%C3%B3ln%C4%85-sztuczn%C4%85-inteligencj%C4%99-agi.86377/",
         "content": (
-            "Huang zrobił klasyczny ruch marketingowy, zredefiniował AGI tak zeby pasowała do tego co aktualnie mają. "
-            "Jak zdefiniujesz AGI jako zdolność do autonomicznego zarządzania firmą technologiczną to aktualne modele są blisko, "
-            "ale to bardzo wąska i specyficznie wybrana definicja. "
-            "To jak gdyby ktoś ogłosił ze osiągnął ogólną inteligencję bo jego program wygrywa w szachy. "
-            "Naukowcy mają rację ze do AGI w sensie elastyczności ludzkiego umysłu jest jeszcze daleko."
+            "huang zrobil klasyczny ruch marketingowy, przedefiniowal agi tak zeby pasowala do tego co aktualnie maja\n"
+            "jak zdefiniujesz agi jako 'zdolnosc do zarzadzania firma technologiczna' to aktualne modele sa blisko, "
+            "ale kto tak definiuje agi serio. do czegos co naprawde mysli jak czlowiek daleko, "
+            "naukowcy od lat to powtarzaja i maja racje"
         ),
     },
     {
         "type": "reply",
-        "url": "https://pleaks.st/threads/nie-potrafi%C4%99-powiedzie%C4%87-czy-nasz-chatbot-ma-%C5%9Bwiadomo%C5%9B%C4%87-czy-nie-przera%C5%BCaj%C4%85ce.83708/",
+        "url": "https://pleaks.st/threads/nie-potrafi%C4%99-powiedzie%C4%87-czy-nasz-chatbot-ma-%C5%9Bwiadomo%C5%9B%C4%87-czy-nie-przera%C5%BC%C4%85ce.83708/",
         "content": (
-            "Myślę ze Amodei jest tu szczery a nie tylko ostrożny PR-owo. "
-            "Problem ze świadomością jest taki ze nawet dla ludzkiego umysłu nie mamy dobrego naukowego testu. "
-            "Hard problem of consciousness nie jest rozwiązany. Nie dziwi ze przy Claude też nie możemy być pewni. "
-            "Przy LLM nie wiemy czy wzorce aktywacji są funkcjonalnym odpowiednikiem emocji bez subiektywnego doświadczenia "
-            "czy jest coś więcej. Na razie zakładam ze nie ma, ale z pokorą."
+            "myslę ze amodei jest szczery, nie wydaje mi sie zeby to byl tylko ostrозny pr. "
+            "problem ze swiadomoscia jest taki ze nawet dla czlowieka nie mamy dobrego testu - "
+            "hard problem of consciousness nikt nie rozwiazal\n"
+            "wiec nie dziwi ze przy ai tez nie wiemy. ja zakladam ze nie ma swiadomosci "
+            "ale to bardziej domysl niz wiedza, uczciwie mowiac"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/polska-reguluje-ai-%E2%80%93-nowa-komisja-b%C4%99dzie-wydawa%C4%87-zezwolenia-i-nak%C5%82ada%C4%87-kary.86672/",
         "content": (
-            "Ten pomysł z samokwalifikacją przez autorów systemów to naprawdę jest comedy. "
-            "AI Act w UE ma podobny problem, definicje są na tyle rozmyte ze duże firmy z dobrymi prawnikami "
-            "stosunkowo łatwo kwalifikują swój system jako niskie ryzyko. "
-            "A małe startupy tworzące coś innowacyjnego będą się bać i nadkwalifikować. "
-            "Efekt odwrotny do zamierzonego. Zobaczymy jak KRiBSI będzie działać w praktyce."
+            "samokwalifikacja przez autorow systemow to chyba zart\n"
+            "ai act w ue ma ten sam problem - definicje sa tak szerokie ze duze firmy z prawnikami "
+            "bez problemu wchodza w 'niskie ryzyko'. male startupy beda sie bac i wpisywac wyzej niz trzeba. "
+            "zawsze tak to dziala, regulacje uderzaja w malych a nie w tych co trzeba"
         ),
     },
 
-    # ── PIENIADZE - ODPOWIEDZI ───────────────────────────────────────────────
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/jakie-etf-godne-uwagi-w-2026.85168/",
-        "content": (
-            "Do listy wyżej dodałbym iShares Core MSCI World (IWDA) jeśli ktoś inwestuje przez europejskie konto maklerskie, "
-            "mniejszy withholding tax dla Europejczyków niż przy US-listed ETF-ach. "
-            "Na sektor energetyczny o którym pisał OP spojrzałbym na IEO albo ICLN zależnie od tego "
-            "czy stawiasz na tradycyjną energetykę czy OZE. "
-            "Ten drugi jest mocno zmienny ale długoterminowo ciekawy jeśli wierzysz w transformację energetyczną."
-        ),
-    },
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/btc-wasze-prognozy-na-2026-rok.84541/",
-        "content": (
-            "Patrząc na historyczne zachowanie po halvingu jesteśmy gdzieś pomiędzy fazą akumulacji a początkiem kolejnego impulsu. "
-            "Poprzednie cykle pokazywały ze dno po dużym ATH przychodzi zazwyczaj 12-18 miesięcy po szczycie, "
-            "potem stabilizacja i nowy ruch. Ale teraz mamy ETF-y spot i instytucje więc dynamika może być inna. "
-            "Osobiście nie stawiam na timing, wolę DCA co miesiąc i nie patrzeć na wykres codziennie."
-        ),
-    },
+    # ── PIENIADZE / KRYPTO ───────────────────────────────────────────────────
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/tw%C3%B3j-najwi%C4%99kszy-b%C5%82%C4%85d-zwi%C4%85zany-z-krypto.26846/",
         "content": (
-            "Mój klasyczny błąd z 2021 - trzymałem altcoiny z przekonaniem ze jak BTC idzie w górę to one też polecą, "
-            "a potem przy korekcie BTC -30% altcoiny pojechały -70%. "
-            "Potem trzymam się zasady ze alty tylko z procentu który jestem gotów stracić w całości, reszta BTC/ETH. "
-            "Drugi błąd to trading bez stop-lossów na mniejszych giełdach, "
-            "parę razy siedziałem w pozycji licząc na odbicie zamiast po prostu uciąć straty."
+            "klasyk z 2021 - trzymalem alty z przekonaniem ze jak btc rosnie to one tez poleca, "
+            "a przy korekcie btc -30% altcoiny jechaly -70%\n"
+            "teraz zasada ze alty tylko z procenta ktory jestem gotow stracic w calosci, reszta btc/eth. "
+            "i stop-lossy zawsze, pare razy siedzialem w pozycji bez nich liczac na odbicie i to byl blad"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/bitcoin-po-halvingu-czy-obecny-cykl-naprawd%C4%99-r%C3%B3%C5%BCni-si%C4%99-od-poprzednich.85179/",
         "content": (
-            "Mnie zainteresował argument o ETF-ach jako zmianie strukturalnej. "
-            "Wcześniej duże ruchy BTC były napędzane przez retail który się nakręcał na Reddicie i Twitterze. "
-            "Teraz masz BlackRock i Fidelity które kupują systematycznie przez ETF-y i nie sprzedają przy każdym dołku z paniki. "
-            "To powinno tłumić zmienność i potencjalnie spowalniać zarówno wzrosty jak i spadki. "
-            "Może właśnie dlatego ten cykl wygląda bardziej nudnie niż poprzednie."
-        ),
-    },
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/dlaczego-bitcoin-ro%C5%9Bnie-w-czasie-konfliktu-w-iranie.85176/",
-        "content": (
-            "To jest ciekawa dynamika i niejednoznaczna. "
-            "Z jednej strony kapitał ucieka do aktywów postrzeganych jako bezpieczne. "
-            "Z drugiej konflikty geopolityczne mogą przyspieszyć sankcje i regulacje które uderzają w krypto, "
-            "więc to jest dwusieczny miecz. "
-            "Natomiast argument z irańskimi koparkami jest sensowny, "
-            "kiedy waluty lokalne tracą zaufanie ludzie szukają alternatyw "
-            "i BTC jest jedną z niewielu dostępnych bez dostępu do systemu bankowego."
+            "mnie przekonuje ten argument z etf-ami. wczesniej duze ruchy btc napędzone przez retail "
+            "nakrecajacy sie na reddicie i twitterze. teraz blackrock kupuje co miesiac przez etf "
+            "i nie sprzedaje przy kazdym dolku z paniki jak detaliczny inwestor\n"
+            "stad pewnie ten cykl taki nudny w porownaniu z poprzednimi"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/jak-zacz%C4%85%C4%87-przygod%C4%99-z-inwestowaniem-w-akcje-i-etf.84464/",
         "content": (
-            "Na XTB polecam zacząć od ich konta demo żeby się oswoić z platformą bez ryzyka. "
-            "Potem warto przeczytać o różnicy między zleceniem rynkowym a limitowym, "
-            "bo wiele osób na tym traci przy wchodzeniu w pozycje na mniej płynnych spółkach. "
-            "Blue chip to dobry start ale jeśli naprawdę chcesz minimalizować ryzyko "
-            "to ETF na szeroki indeks będzie bezpieczniejszy niż single-stock picks, przynajmniej na początku."
+            "na xtb polecam zaczac od konta demo - oswoic sie z platforma bez ryzyka. "
+            "warto tez przeczytac o roznicy miedzy zleceniem rynkowym a limitowym "
+            "bo wiele osob na tym traci przy mniej plynnych spolkach\n"
+            "blue chip to dobry start ale etf na szeroki indeks bedzie bezpieczniejszy "
+            "niz single-stock picks na poczatek"
         ),
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/wyplata-zyskow-a-podatki.57553/",
         "content": (
-            "PIT-38 musisz złożyć jeśli miałeś jakiekolwiek przychody z krypto w danym roku, "
-            "nawet jeśli finalnie jesteś na stracie, możesz odliczyć koszty nabycia. "
-            "Warto prowadzić rejestr wszystkich transakcji z datami i kursami, "
-            "bo przy rozliczeniu US będzie pytało o przychód i koszt każdej. "
-            "Polecam Koinly albo podobne narzędzie które automatycznie generuje raport podatkowy "
-            "z historii transakcji z giełd."
+            "pit-38 musisz zlozyc jesli miales jakiekolwiek przychody z krypto w danym roku, "
+            "nawet jak jestes finalnie na stracie mozesz odliczyc koszty nabycia\n"
+            "warto prowadzic rejestr transakcji z datami i kursami. "
+            "koinly albo podobne narzedzie bardzo pomaga przy generowaniu raportu podatkowego"
         ),
     },
 
-    # ── DARMOWE - ODPOWIEDZI ─────────────────────────────────────────────────
+    # ── DARMOWE ──────────────────────────────────────────────────────────────
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/nordvpn-expires-on-february-20-2028-limit-2.86751/",
-        "content": (
-            "Dzięki za udostępnienie, zaraz sprawdze czy działa. "
-            "NordVPN to jeden z lepszych jeśli chodzi o prędkości i zasięg serwerów, "
-            "akurat szukałem czegoś do odblokowania zagranicznych serwisów streamingowych."
-        ),
-    },
-    {
-        "type": "reply",
-        "url": "https://pleaks.st/threads/deezer-premium.86649/",
-        "content": (
-            "Dzięki, Deezer ma chyba największą bibliotekę polskich treści muzycznych spośród serwisów premium. "
-            "Sprawdze konto, fajnie posłuchać w lepszej jakości bez reklam."
-        ),
+        "content": "dzieki, sprawdze czy dziala - szukam czegos do odblokowania zagranicznych serwisow streamingowych",
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/steam-phasmophobia.87045/",
-        "content": (
-            "Phasmophobia to świetna gra do grania w grupce, sam gram od czasu do czasu "
-            "i nadal sprawia frajdę mimo ze jest już kilka lat na rynku. "
-            "Sprawdze dostęp, dzięki za wrzucenie."
-        ),
+        "content": "o dzieki, wlasnie chcialem sprawdzic z kumplami. fajnie sie gra w pare osob",
     },
     {
         "type": "reply",
         "url": "https://pleaks.st/threads/woblink-com-ebooki-95-audiobooki-0-%C5%81%C4%85cznie-95.85944/",
-        "content": (
-            "Super, właśnie szukam czegoś do czytania. "
-            "95 ebooków to niezła kolekcja, sprawdze czy jest coś ciekawego. "
-            "Dzięki za wrzucenie."
-        ),
+        "content": "sprawdze co jest w kolekcji, dzieki za wrzucenie",
     },
 
     # ── NOWE WATKI ───────────────────────────────────────────────────────────
     {
         "type": "new_thread",
-        "forum_url": "https://pleaks.st/forums/aktualno%C5%9Bci-i-dyskusje.180/create-thread",
-        "title": "Który model AI najbardziej skraca Wam czas pracy i do czego konkretnie?",
+        "forum_url": "https://pleaks.st/forums/aktualno%C5%9Bci-i-dyskusje.180/post-thread",
+        "title": "Który model AI realnie oszczędza wam czas - konkretnie do czego?",
         "content": (
-            "Widzę na forum sporo wątków o tym jakie subskrypcje kto ma, "
-            "ale rzadko kiedy ktoś pisze konkretnie co mu ten model AI realnie daje w codziennej robocie. "
-            "Pomyślałem ze fajnie byłoby zebrać takie case'y w jednym miejscu, "
-            "bo to jest chyba najbardziej przydatna informacja dla osób które zastanawiają się co warto mieć.\n\n"
-            "U mnie wygląda to tak:\n\n"
-            "Claude Pro - do przeczytania i podsumowania długich dokumentów, maili, raportów. "
-            "Mam wrażenie ze Sonnet lepiej ogarnia kontekst przy długich tekstach niż GPT, "
-            "przynajmniej przy polskich dokumentach. "
-            "Oszczędza mi pewnie z 30-40 minut dziennie na samym czytaniu i streszczaniu rzeczy które muszę ogarniać w pracy.\n\n"
-            "ChatGPT o3-mini - do szybkich pytań gdzie nie potrzebuję kontekstu z poprzednich rozmów. "
-            "Szybszy do odpalenia przez aplikację mobilną niż Claude.\n\n"
-            "Gemini Advanced (Google One) - głównie do spraw związanych z arkuszami kalkulacyjnymi i Docsami, "
-            "bo działa bezpośrednio w ekosystemie Google. Nie jest najlepszy ale jak masz już Workspace to po prostu jest pod ręką.\n\n"
-            "Ogólnie mam poczucie ze AI nie zastąpiło mi żadnej konkretnej pracy w całości, "
-            "ale skróciło czas wykonywania mnóstwa małych rzeczy o 30-50%. "
-            "Ciekaw jestem jak to wygląda u innych, zwłaszcza tych którzy używają AI "
-            "do czegoś bardziej niestandardowego niż kodowanie i pisanie tekstów."
+            "widze sporo watkow o subskrypcjach ale rzadko ktos pisze konkretnie co mu ten model "
+            "realnie daje w pracy. pomyslalem ze fajnie zebrac takie przyklady bo to chyba "
+            "najbardziej przydatna informacja dla tych co sie zastanawiaja co brac\n\n"
+            "u mnie wyglada to tak:\n\n"
+            "claude pro - do czytania i skracania dlugich dokumentow, maili, raportow. "
+            "sonnet lepiej ogarnia kontekst dlugich polskich tekstow niz gpt moim zdaniem. "
+            "jakies 30-40 minut dziennie zaoszczedzone tylko na tym\n\n"
+            "chatgpt o3-mini - szybkie pytania przez apke, szybszy do odpalenia niz claude\n\n"
+            "gemini advanced - jak mam cos w arkuszach albo docsach to jest po prostu pod reka, "
+            "bez przelaczania aplikacji. nie najlepszy ale jak masz workspace to działa\n\n"
+            "czuje ze ai nie zastąpiło mi zadnej roboty w calosci ale przyspieszylo duzo malych rzeczy o te 30-50%. "
+            "ciekaw jestem jak to wyglada u innych, szczegolnie jak ktos uzywa do czegos niestandardowego"
         ),
     },
     {
         "type": "new_thread",
-        "forum_url": "https://pleaks.st/forums/kryptowaluty.81/create-thread",
-        "title": "DCA w BTC - od kiedy stosujecie i czy zalujecie?",
+        "forum_url": "https://pleaks.st/forums/kryptowaluty.81/post-thread",
+        "title": "DCA w btc - kto tak robi, od kiedy i czy żałujecie?",
         "content": (
-            "Dollar Cost Averaging czyli kupowanie BTC regularnie, np. co tydzień lub co miesiąc, "
-            "niezależnie od kursu. Temat pojawia się w wielu wątkach jako rada dla początkujących, "
-            "ale nigdzie nie widzę zebranych konkretnych doświadczeń od osób które faktycznie to robią od dłuższego czasu.\n\n"
-            "Ja zacząłem DCA w BTC w połowie 2023 roku. Przez pierwsze miesiące wyglądało to dość słabo "
-            "bo kurs chodził w bok i miałem wrażenie ze wrzucam kasę w próżnię. "
-            "Potem przyszedł 2024 i z perspektywy całej strategii wyszło całkiem nieźle, "
-            "mimo ze oczywiście nie trafiłem w żadne lokalne dołki.\n\n"
-            "Co mi dało DCA:\n"
-            "- psychicznie jest dużo łatwiej niż próba trafienia w idealny moment wejścia\n"
-            "- zmusza do regularnego odkładania konkretnej kwoty, co jest dobrą dyscypliną finansową "
-            "niezależnie od wyników\n"
-            "- nie musisz śledzić wykresu codziennie żeby czuć ze coś robisz\n\n"
-            "Czego nie dało:\n"
-            "- nie kupiłem tyle ile mógłbym gdybym wszedł całą kwotą w odpowiednim momencie, "
-            "ale kto by trafił ten moment z góry\n"
-            "- przy mocnych spadkach nadal jest psychicznie ciężko kontynuować, "
-            "teoria jest prosta a praktyka inna\n\n"
-            "Ciekaw jestem ile osób tutaj faktycznie stosuje DCA systematycznie od ponad roku "
-            "i jak to u Was wygląda. Jaka kwota co jaki czas, na jakiej giełdzie, "
-            "czy robicie to ręcznie czy macie jakiś automat?"
+            "dca w btc, czyli kupowanie co tydzien lub miesiac bez patrzenia na kurs. "
+            "temat pojawia sie czesto jako rada dla poczatkujacych ale nigdzie nie widze "
+            "konkretnych historii od osob ktore to faktycznie robia od dawna\n\n"
+            "ja zaczelaem w polowie 2023. przez pierwsze miesiace wygladalo to slabo, "
+            "kurs chodził w bok i mialem wrazenie ze wrzucam kase w proznje. "
+            "potem przyszedl 2024 i z perspektywy calej strategii wyszlo calkiem ok, "
+            "mimo ze w zadne dołki nie trafilem oczywiscie\n\n"
+            "co mi to dalo: psychicznie latwiej niz kombinowanie z wejsciem w idealnym momencie, "
+            "wymusza regularne odkładanie kasy, nie siedzisz codziennie przy wykresie\n\n"
+            "czego nie dalo: nie mam tyle btc ile mialbym gdybym wszedl cala kwota w dołku - "
+            "ale kto by trafil. i przy mocnych spadkach nadal ciezko psychicznie kontynuowac, teoria jest prosta\n\n"
+            "ciekawe ilu tu robi dca od ponad roku i jak to wyglada praktycznie - ile, jak czesto, na jakiej gieldzie?"
         ),
     },
 ]
@@ -285,165 +195,133 @@ POSTS = [
 
 # ─── LOSOWE ODSTEPY ─────────────────────────────────────────────────────────
 
-def gen_delays(n, total_seconds=2400):
-    """Generuje n-1 losowych odstepow sumujacych sie do ~total_seconds."""
+def gen_delays(n, total_seconds=2200):
     raw = [random.uniform(0.5, 1.5) for _ in range(n - 1)]
     total = sum(raw)
     scaled = [r / total * total_seconds for r in raw]
-    # Minimalne opoznienie: 45s, maksymalne: 240s
     clamped = [max(45, min(240, s)) for s in scaled]
     return clamped
 
 
-# ─── LOGOWANIE ──────────────────────────────────────────────────────────────
+# ─── LOGIKA POSTOWANIA ──────────────────────────────────────────────────────
 
-def fill_editor(page, content):
-    """Proba wypelnienia edytora XenForo (Froala / textarea)."""
-    filled = page.evaluate("""(text) => {
-        // Metoda 1: ukryta textarea z wartoscia
-        const selectors = ['textarea[name="message"]', '.js-value[name="message"]'];
-        for (const s of selectors) {
-            const el = document.querySelector(s);
-            if (el) {
-                const nativeInputSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-                nativeInputSetter.call(el, text);
-                el.dispatchEvent(new Event('input', {bubbles: true}));
-                el.dispatchEvent(new Event('change', {bubbles: true}));
-                return 'textarea:' + s;
-            }
-        }
-        // Metoda 2: Froala editor
-        const fr = document.querySelector('.fr-element.fr-view, .fr-element');
-        if (fr) {
-            fr.innerHTML = text.split('\\n').map(l => '<p>' + (l.trim() || '<br>') + '</p>').join('');
-            fr.dispatchEvent(new Event('input', {bubbles: true}));
-            fr.dispatchEvent(new Event('keyup', {bubbles: true}));
-            return 'froala';
-        }
-        // Metoda 3: contenteditable
-        const ce = document.querySelector('[contenteditable="true"]');
-        if (ce) {
-            ce.innerText = text;
-            ce.dispatchEvent(new Event('input', {bubbles: true}));
-            return 'contenteditable';
-        }
-        return null;
-    }""", content)
-    return filled
+def type_into_editor(page, content):
+    # Probuj tez kliknac przycisk odpowiedzi jesli edytor nie jest widoczny
+    editor = page.query_selector(".fr-element.fr-view, .fr-element")
+    if not editor:
+        # Scroll na dol i szukaj przycisku odpowiedzi
+        page.keyboard.press("End")
+        page.wait_for_timeout(800)
+        for sel in ['a.button--link[href*="reply"]', '.js-quickReply', 'a[data-xf-click="quick-reply"]']:
+            btn = page.query_selector(sel)
+            if btn:
+                btn.click()
+                page.wait_for_timeout(1000)
+                break
+        editor = page.query_selector(".fr-element.fr-view, .fr-element")
+
+    if not editor:
+        print("  [!] Brak edytora Froala")
+        return False
+
+    editor.click()
+    page.wait_for_timeout(400)
+    page.keyboard.press("Control+a")
+    page.keyboard.press("Delete")
+    page.keyboard.type(content, delay=18)
+    page.wait_for_timeout(300)
+    return True
+
+
+def click_submit(page):
+    for locator_args in [
+        {"has_text": "Odpowiedz"},
+        {"has_text": "Opublikuj"},
+        {"has_text": "Wyslij"},
+    ]:
+        try:
+            page.locator("button", **locator_args).last.click(timeout=4000)
+            return True
+        except Exception:
+            pass
+    try:
+        page.locator("button[type='submit']").last.click(timeout=3000)
+        return True
+    except Exception:
+        pass
+    return False
 
 
 def post_reply(page, url, content, label):
-    print(f"\n[>>] Odpowiedz: {label[:60]}")
+    print(f"\n[>>] Odpowiedz: {label[:70]}")
     try:
         page.goto(url, wait_until='domcontentloaded', timeout=20000)
     except PWTimeout:
-        print("  [!] Timeout ladowania strony")
+        print("  [!] Timeout ladowania")
         return False
-    page.wait_for_timeout(random.randint(1200, 2200))
+    page.wait_for_timeout(random.randint(1500, 2500))
 
-    # Sprawdz czy zalogowany
     if 'login' in page.url:
         print("  [!] Sesja wygasla!")
         return False
 
-    # Kliknij obszar odpowiedzi zeby aktywowac edytor
-    try:
-        qr = page.query_selector('.js-quickReply .bbCodeEditor, .p-body-footer .bbCodeEditor')
-        if qr:
-            qr.click()
-            page.wait_for_timeout(600)
-    except Exception:
-        pass
-
-    filled = fill_editor(page, content)
-    if not filled:
-        # ostatnia szansa - kliknij "Odpowiedz" i sprobuj ponownie
-        try:
-            page.click('a[href*="reply"], .button--reply', timeout=3000)
-            page.wait_for_timeout(1500)
-            filled = fill_editor(page, content)
-        except Exception:
-            pass
-
-    if not filled:
-        print("  [!] Nie udalo sie wypelnic edytora")
+    if not type_into_editor(page, content):
         return False
 
-    print(f"  [+] Wypelniono edytor ({filled})")
-    page.wait_for_timeout(random.randint(800, 1500))
+    print("  [+] Wpisano tresc")
+    page.wait_for_timeout(random.randint(600, 1200))
 
-    # Submit
-    try:
-        btn = page.query_selector('.js-quickReply button[type="submit"], button.button--primary[type="submit"]')
-        if not btn:
-            btn = page.query_selector('button[type="submit"]:visible')
-        if btn:
-            btn.click()
-        else:
-            page.keyboard.press('Control+Enter')
-    except Exception as e:
-        print(f"  [!] Blad submitu: {e}")
+    if not click_submit(page):
+        print("  [!] Blad submitu")
         return False
 
     page.wait_for_timeout(random.randint(2500, 4000))
 
-    # Sprawdz wynik
-    current = page.url
-    if 'error' in current.lower() or 'login' in current:
-        print(f"  [!] Blad po wysylce: {current}")
-        page.screenshot(path=f"ss_err_{label[:20]}.png")
+    if 'login' in page.url:
+        print("  [!] Przekierowano do logowania")
         return False
 
-    print(f"  [OK] Wyslano post")
+    print(f"  [OK] Wyslano -> {page.url}")
     return True
 
 
 def create_thread(page, forum_url, title, content, label):
-    print(f"\n[>>] Nowy watek: {title[:60]}")
+    print(f"\n[>>] Nowy watek: {title[:70]}")
     try:
-        page.goto(forum_url, wait_until='domcontentloaded', timeout=20000)
+        page.goto(forum_url, wait_until='networkidle', timeout=25000)
     except PWTimeout:
         print("  [!] Timeout")
         return False
-    page.wait_for_timeout(random.randint(1200, 2000))
+    page.wait_for_timeout(2000)
 
     if 'login' in page.url:
         print("  [!] Sesja wygasla!")
         return False
 
-    # Tytul
+    # XenForo uzywa textarea[name="title"], nie input
     try:
-        page.fill('input[name="title"]', title, timeout=5000)
+        page.fill('textarea[name="title"]', title, timeout=8000)
+        print("  [+] Wpisano tytul")
     except Exception as e:
         print(f"  [!] Brak pola tytulu: {e}")
         return False
 
-    page.wait_for_timeout(400)
+    page.wait_for_timeout(500)
 
-    # Tresc
-    filled = fill_editor(page, content)
-    if not filled:
-        print("  [!] Nie udalo sie wypelnic tresci")
+    if not type_into_editor(page, content):
         return False
 
-    print(f"  [+] Wypelniono tytul i tresc ({filled})")
-    page.wait_for_timeout(random.randint(1000, 2000))
+    print("  [+] Wpisano tresc")
+    page.wait_for_timeout(random.randint(800, 1500))
 
-    # Submit
-    try:
-        btn = page.query_selector('button[type="submit"].button--primary, button[type="submit"]:visible')
-        if btn:
-            btn.click()
-        else:
-            page.keyboard.press('Control+Enter')
-    except Exception as e:
-        print(f"  [!] Blad submitu: {e}")
+    if not click_submit(page):
+        print("  [!] Blad submitu")
         return False
 
     page.wait_for_timeout(random.randint(3000, 5000))
 
     if 'login' in page.url:
-        print("  [!] Po submicie przekierowano do logowania")
+        print("  [!] Po submicie -> logowanie")
         return False
 
     print(f"  [OK] Watek utworzony: {page.url}")
@@ -456,7 +334,6 @@ def main():
     with open('session_cookies.json') as f:
         cookies = json.load(f)
 
-    # Losowa kolejnosc (zachowaj mix sekcji)
     posts_copy = POSTS.copy()
     random.shuffle(posts_copy)
 
@@ -478,14 +355,10 @@ def main():
         ctx.add_cookies(cookies)
         page = ctx.new_page()
 
-        # Szybki test sesji
         page.goto('https://pleaks.st/', wait_until='domcontentloaded')
         page.wait_for_timeout(2000)
-        if 'login' in page.url or 'Logowanie' not in page.content() and 'logout' not in page.content().lower():
-            logged = page.query_selector('a[href*="logout"], a[href*="wyloguj"]') is not None
-        else:
-            logged = True
-        print(f"[*] Sesja aktywna: {logged}")
+        logged = page.query_selector('a[href*="logout"], a[href*="wyloguj"]') is not None
+        print(f"[*] Sesja aktywna: {logged}\n")
 
         if not logged:
             print("[!] Sesja wygasla - potrzebny nowy TOTP!")
@@ -493,7 +366,7 @@ def main():
             return
 
         for i, post in enumerate(posts_copy):
-            label = post.get('title', post.get('url', ''))[:50]
+            label = post.get('title', post.get('url', ''))[:60]
 
             if post['type'] == 'reply':
                 ok = post_reply(page, post['url'], post['content'], label)
@@ -511,10 +384,9 @@ def main():
 
         browser.close()
 
-    # Podsumowanie
     ok_count = sum(1 for r in results if r['ok'])
     print(f"\n{'='*50}")
-    print(f"GOTOWE: {ok_count}/{len(results)} postow wyslanych pomyslnie")
+    print(f"GOTOWE: {ok_count}/{len(results)} postow wyslanych")
     for r in results:
         status = 'OK' if r['ok'] else 'BLAD'
         print(f"  [{status}] {r['label'][:60]}")
