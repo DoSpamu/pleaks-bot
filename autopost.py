@@ -11,6 +11,48 @@ except AttributeError:
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+
+# ─── HUMANIZER ──────────────────────────────────────────────────────────────
+
+def humanize_text(page, text):
+    """Przepuszcza tekst przez ai-text-humanizer.com (darmowy, bez logowania).
+    Wymaga min. 300 znakow. Zwraca przetworzony tekst lub oryginalny jesli blad."""
+    if len(text) < 300:
+        return text  # za krotki - pomijamy humanizacje
+
+    try:
+        page.goto("https://ai-text-humanizer.com/", wait_until='networkidle', timeout=20000)
+        page.wait_for_timeout(1500)
+
+        escaped = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        page.evaluate(f"""(function() {{
+            var ta = document.querySelectorAll('textarea')[0];
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+            setter.call(ta, "{escaped}");
+            ta.dispatchEvent(new Event('input', {{bubbles: true}}));
+        }})()""")
+        page.wait_for_timeout(500)
+
+        btn = page.query_selector("button:has-text('Humanize Text')")
+        if not btn:
+            print("  [!] Brak przycisku humanizera")
+            return text
+        btn.scroll_into_view_if_needed()
+        btn.click(force=True)
+
+        for _ in range(20):
+            page.wait_for_timeout(2000)
+            output = page.evaluate("(function(){ return document.querySelectorAll('textarea')[1].value; })()")
+            if output and len(output) > 30:
+                print(f"  [H] Humanizacja OK ({len(text)} -> {len(output)} zn)")
+                return output
+
+        print("  [!] Humanizacja timeout - uzyto oryginalny tekst")
+        return text
+    except Exception as e:
+        print(f"  [!] Humanizacja blad: {e}")
+        return text
+
 # ─── POSTY DO WYSLANIA ───────────────────────────────────────────────────────
 # (juz wyslane usuniete z listy)
 
@@ -254,6 +296,7 @@ def click_submit(page):
 
 def post_reply(page, url, content, label):
     print(f"\n[>>] Odpowiedz: {label[:70]}")
+    # content = humanize_text(page, content)  # wlacz na prosbe uzytkownika
     try:
         page.goto(url, wait_until='domcontentloaded', timeout=20000)
     except PWTimeout:
@@ -287,6 +330,7 @@ def post_reply(page, url, content, label):
 
 def create_thread(page, forum_url, title, content, label):
     print(f"\n[>>] Nowy watek: {title[:70]}")
+    # content = humanize_text(page, content)  # wlacz na prosbe uzytkownika
     try:
         page.goto(forum_url, wait_until='networkidle', timeout=25000)
     except PWTimeout:
