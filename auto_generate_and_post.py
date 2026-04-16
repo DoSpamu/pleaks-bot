@@ -89,6 +89,34 @@ def save_posted(urls: set):
     with open(POSTED_LOG, "w", encoding="utf-8") as f:
         json.dump(list(urls), f, ensure_ascii=False, indent=2)
 
+# ─── POST-PROCESSING ────────────────────────────────────────────────────────
+
+def dedupe_sentences(text: str) -> str:
+    """Usuwa zduplikowane zdania ktore Gemini czasem generuje."""
+    import re
+    # Podziel na zdania (po ., !, ?, lub nowej linii)
+    parts = re.split(r'(?<=[.!?])\s+|\n', text)
+    seen = set()
+    result = []
+    for part in parts:
+        normalized = part.strip().lower()
+        if not normalized:
+            continue
+        # Sprawdz czy zdanie nie jest za podobne do juz dodanego (>80% slow)
+        words = set(normalized.split())
+        duplicate = False
+        for s in seen:
+            s_words = set(s.split())
+            if len(words) > 3 and len(s_words) > 3:
+                overlap = len(words & s_words) / max(len(words), len(s_words))
+                if overlap > 0.8:
+                    duplicate = True
+                    break
+        if not duplicate:
+            seen.add(normalized)
+            result.append(part.strip())
+    return ' '.join(result)
+
 # ─── GEMINI ─────────────────────────────────────────────────────────────────
 
 def generate_reply(thread_title: str, thread_posts: list[str], section: str) -> str:
@@ -125,6 +153,7 @@ Napisz naturalna odpowiedz w tym watku:"""
                 contents=prompt,
             )
             text = resp.text.strip().strip('"').strip("'")
+            text = dedupe_sentences(text)
             if text.endswith("."):
                 text = text[:-1]
             if len(text) < 5:
