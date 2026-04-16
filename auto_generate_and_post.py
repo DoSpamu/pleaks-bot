@@ -142,7 +142,8 @@ def send_discord(message: str):
         import urllib.request
         data = json.dumps({"content": message}).encode("utf-8")
         req = urllib.request.Request(DISCORD_URL, data=data,
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "User-Agent": "pleaks-bot/1.0"})
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
         print(f"  [!] Discord blad: {e}")
