@@ -12,13 +12,13 @@ WORKDIR /app
 
 # Python deps
 RUN pip install --no-cache-dir \
-    playwright \
+    patchright \
     pyotp \
     python-dotenv \
     google-genai
 
-# Playwright chromium
-RUN playwright install chromium && playwright install-deps chromium
+# Patchright chromium (patched CDP leak)
+RUN patchright install chromium && patchright install-deps chromium
 
 # Kopiuj kod bota
 COPY auto_generate_and_post.py .

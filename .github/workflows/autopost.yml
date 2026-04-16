@@ -27,9 +27,9 @@ jobs:
 
       - name: Instalacja zaleznosci
         run: |
-          pip install playwright pyotp python-dotenv google-genai
-          playwright install chromium
-          playwright install-deps chromium
+          pip install patchright pyotp python-dotenv google-genai
+          patchright install chromium
+          patchright install-deps chromium
 
       - name: Pobierz cookies z cache
         uses: actions/cache@v4

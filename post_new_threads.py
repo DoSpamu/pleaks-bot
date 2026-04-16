@@ -7,7 +7,7 @@ try:
 except AttributeError:
     pass
 
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from patchright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 THREADS = [
     {
@@ -154,7 +154,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             locale='pl-PL',
             viewport={'width': 1280, 'height': 900},
         )

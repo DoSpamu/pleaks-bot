@@ -22,7 +22,7 @@ import atexit
 atexit.register(lambda: os.remove(LOCK_FILE) if os.path.exists(LOCK_FILE) else None)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from patchright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 
 # ─── HUMANIZER ──────────────────────────────────────────────────────────────
