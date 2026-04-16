@@ -1,9 +1,8 @@
 name: pleaks autopost
 
 on:
-  schedule:
-    # Co 12 dni o 11:23 UTC (nieokragla godzina)
-    - cron: '23 11 */12 * *'
+  # schedule:
+  #   - cron: '23 11 */12 * *'
   workflow_dispatch:
     inputs:
       mode:
