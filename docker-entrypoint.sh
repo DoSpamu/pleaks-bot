@@ -2,11 +2,13 @@
 
 MODE="${BOT_MODE:-auto}"
 VNC_PASSWORD="${VNC_PASSWORD:-}"
+VNC_WEB_PORT="${VNC_WEB_PORT:-6080}"    # zmien przez env jesli 6080 zajete
+VNC_RAW_PORT="${VNC_RAW_PORT:-5900}"    # raw VNC port
 DISPLAY_NUM=":1"
 export DISPLAY=$DISPLAY_NUM
 
 echo "============================================"
-echo " pleaks-bot | mode=$MODE | VNC :6080"
+echo " pleaks-bot | mode=$MODE | VNC :$VNC_WEB_PORT"
 echo "============================================"
 
 # === 1. Virtual display ===
@@ -19,21 +21,20 @@ openbox &
 sleep 1
 
 # === 3. VNC server ===
-echo "[VNC] Uruchamiam x11vnc..."
+echo "[VNC] Uruchamiam x11vnc na porcie $VNC_RAW_PORT..."
 if [ -n "$VNC_PASSWORD" ]; then
     x11vnc -storepasswd "$VNC_PASSWORD" /tmp/vncpass 2>/dev/null
     x11vnc -display $DISPLAY_NUM -forever -rfbauth /tmp/vncpass \
-           -rfbport 5900 -quiet -noxdamage -shared &
+           -rfbport $VNC_RAW_PORT -quiet -noxdamage -shared &
 else
-    echo "[VNC] Brak VNC_PASSWORD — brak hasla (ustaw env VNC_PASSWORD)"
     x11vnc -display $DISPLAY_NUM -forever -nopw \
-           -rfbport 5900 -quiet -noxdamage -shared &
+           -rfbport $VNC_RAW_PORT -quiet -noxdamage -shared &
 fi
 sleep 1
 
 # === 4. noVNC (web) ===
-echo "[VNC] Uruchamiam noVNC na porcie 6080..."
-websockify --web /usr/share/novnc 6080 localhost:5900 &
+echo "[VNC] Uruchamiam noVNC na porcie $VNC_WEB_PORT..."
+websockify --web /usr/share/novnc $VNC_WEB_PORT localhost:$VNC_RAW_PORT &
 sleep 1
 
 # === 5. Chromium w VNC ===
@@ -41,6 +42,7 @@ echo "[VNC] Otwieram Chromium -> pleaks.st"
 chromium \
     --no-sandbox \
     --disable-gpu \
+    --disable-features=MediaRouter \
     --display=$DISPLAY_NUM \
     --start-maximized \
     --disable-infobars \
@@ -49,8 +51,8 @@ chromium \
 sleep 2
 
 echo ""
-echo "[*] VNC dostepne: http://TWOJE_IP:6080/vnc.html"
-echo "[*] Lub klient VNC: TWOJE_IP:5900"
+echo "[*] VNC web:  http://TWOJE_IP:$VNC_WEB_PORT/vnc.html"
+echo "[*] VNC raw:  TWOJE_IP:$VNC_RAW_PORT"
 echo ""
 
 # === 6. VPN ===
@@ -71,9 +73,7 @@ else
 fi
 
 echo ""
-echo "[*] Kontener aktywny — uzyj VNC zeby przegladac forum przez VPN"
-echo "[*] http://TWOJE_IP:6080/vnc.html"
+echo "[*] Kontener aktywny — VNC: http://TWOJE_IP:$VNC_WEB_PORT/vnc.html"
 echo ""
 
-# Trzymaj kontener przy zyciu
 tail -f /dev/null

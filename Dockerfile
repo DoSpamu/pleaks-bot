@@ -32,12 +32,15 @@ RUN pip install --no-cache-dir \
 # Patchright chromium (dla bota — patched CDP)
 RUN patchright install chromium && patchright install-deps chromium
 
+# CACHEBUST — zmien wartosc w compose args zeby wymusic swiezy build
+ARG CACHEBUST=1
+RUN echo "build $CACHEBUST"
+
 COPY auto_generate_and_post.py .
 COPY setup_vpn.py .
 COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 6080 = noVNC web, 5900 = raw VNC
-EXPOSE 6080 5900
+EXPOSE 6500 5901
 
 ENTRYPOINT ["/entrypoint.sh"]

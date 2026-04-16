@@ -53,9 +53,13 @@ STYLE_PROMPT = """Jesteś użytkownikiem polskiego forum pleaks.st. Piszesz kró
 
 ZASADY ABSOLUTNE:
 - Bez kropki na końcu postu
-- Małe litery na początku zdania (styl forum)
+- Pierwsze zdanie posta zaczynaj WIELKĄ literą, kolejne zdania losowo — raz wielką, raz małą
+- Nowe wątki (posty dłuższe niż 3 zdania) zawsze zaczynaj wielką literą
 - Krótko: 2-4 zdania dla SI/Pieniadze, 1-2 zdania dla Darmowe
 - Bez formalnego języka: nie "należy", "warto", "istotny", "kluczowy"
+- ABSOLUTNY ZAKAZ pozdrowień na początku: nie "Cześć", "Hej", "Witam", "Siema", "Hejka", "Siemanko", "no siema", "Cześć mordeczki" — zacznij od razu od tematu lub obserwacji
+- Nowe wątki: 10-15 zdań, rozbudowane, z osobistą historią/kontekstem, na końcu jedno pytanie do innych
+- Przykład dobrego otwarcia nowego wątku: "Ostatnio zacząłem się przyglądać ETFom i nie mogę się zdecydować od czego zacząć. Wszystko wygląda podobnie na papierze ale wyniki już nie..."
 - Pisz jakbyś to pisał na telefonie, szybko
 - Occasionalnie "xd" lub ":)" ale nie w każdym poście - max 1 na 4-5 postów
 - Bez emoji w treści postów
@@ -84,6 +88,34 @@ def load_posted() -> set:
 def save_posted(urls: set):
     with open(POSTED_LOG, "w", encoding="utf-8") as f:
         json.dump(list(urls), f, ensure_ascii=False, indent=2)
+
+# ─── POST-PROCESSING ────────────────────────────────────────────────────────
+
+def dedupe_sentences(text: str) -> str:
+    """Usuwa zduplikowane zdania ktore Gemini czasem generuje."""
+    import re
+    # Podziel na zdania (po ., !, ?, lub nowej linii)
+    parts = re.split(r'(?<=[.!?])\s+|\n', text)
+    seen = set()
+    result = []
+    for part in parts:
+        normalized = part.strip().lower()
+        if not normalized:
+            continue
+        # Sprawdz czy zdanie nie jest za podobne do juz dodanego (>80% slow)
+        words = set(normalized.split())
+        duplicate = False
+        for s in seen:
+            s_words = set(s.split())
+            if len(words) > 3 and len(s_words) > 3:
+                overlap = len(words & s_words) / max(len(words), len(s_words))
+                if overlap > 0.8:
+                    duplicate = True
+                    break
+        if not duplicate:
+            seen.add(normalized)
+            result.append(part.strip())
+    return ' '.join(result)
 
 # ─── GEMINI ─────────────────────────────────────────────────────────────────
 
@@ -121,6 +153,7 @@ Napisz naturalna odpowiedz w tym watku:"""
                 contents=prompt,
             )
             text = resp.text.strip().strip('"').strip("'")
+            text = dedupe_sentences(text)
             if text.endswith("."):
                 text = text[:-1]
             if len(text) < 5:
@@ -142,7 +175,8 @@ def send_discord(message: str):
         import urllib.request
         data = json.dumps({"content": message}).encode("utf-8")
         req = urllib.request.Request(DISCORD_URL, data=data,
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "User-Agent": "pleaks-bot/1.0"})
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
         print(f"  [!] Discord blad: {e}")
@@ -473,11 +507,23 @@ def main():
 
         for i, post in enumerate(generated):
             ok = post_reply(page, post["url"], post["content"], post["title"])
-            results.append({"title": post["title"], "url": post["url"], "ok": ok})
+            results.append({"title": post["title"], "url": post["url"], "ok": ok, "content": post["content"]})
 
             if ok:
                 posted_urls.add(post["url"])
                 save_posted(posted_urls)
+                send_discord(
+                    f"✅ **[{i+1}/{len(generated)}] {post['section']}**\n"
+                    f"**{post['title'][:80]}**\n"
+                    f"> {post['content'][:200]}\n"
+                    f"<{post['url']}>"
+                )
+            else:
+                send_discord(
+                    f"❌ **[{i+1}/{len(generated)}] BLAD**\n"
+                    f"{post['title'][:80]}\n"
+                    f"<{post['url']}>"
+                )
 
             if i < len(generated) - 1:
                 delay = delays[i]
@@ -498,7 +544,10 @@ def main():
         json.dump(results, f, ensure_ascii=False, indent=2)
 
     if DISCORD_URL and not MODE_PREVIEW:
-        send_discord(f"pleaks.st — gotowe: {ok_count}/{len(results)} postow wyslanych")
+        send_discord(
+            f"**pleaks.st — sesja zakonczona**\n"
+            f"Wyslano: **{ok_count}/{len(results)}** postow"
+        )
 
 
 if __name__ == "__main__":
