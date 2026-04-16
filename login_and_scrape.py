@@ -1,21 +1,40 @@
 #!/usr/bin/env python3
 """
-Scraper pleaks.st - logowanie + zbieranie wątków.
-Użycie: python login_and_scrape.py <KOD_TOTP>
+Scraper pleaks.st - logowanie + zbieranie watkow.
+Uzycie:
+  python login_and_scrape.py          # TOTP z .env (PLEAKS_TOTP_SECRET)
+  python login_and_scrape.py 123456   # reczny kod TOTP
 """
 import sys
 import json
 import random
+import os
+
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-EMAIL = "dospamu.pl@gmail.com"
-HASLO = "Zalas539!"
-TOTP = sys.argv[1] if len(sys.argv) > 1 else ""
+EMAIL       = os.getenv("PLEAKS_EMAIL", "chmurkowychmurkas@gmail.com")
+HASLO       = os.getenv("PLEAKS_HASLO", "Biolanic2026!")
+TOTP_SECRET = os.getenv("PLEAKS_TOTP_SECRET", "")
+
+# Jesli podano kod recznie — uzyj go; jesli jest secret — generuj automatycznie
+if len(sys.argv) > 1:
+    TOTP = sys.argv[1]
+elif TOTP_SECRET:
+    import pyotp
+    TOTP = pyotp.TOTP(TOTP_SECRET).now()
+    print(f"[*] TOTP wygenerowany automatycznie: {TOTP}")
+else:
+    TOTP = ""
 
 DZIALY = [
-    ("Darmowe",              "https://pleaks.st/forums/darmowe.93/"),
-    ("Sztuczna Inteligencja","https://pleaks.st/forums/sztuczna-inteligencja.179/"),
-    ("Pieniadze",            "https://pleaks.st/forums/pieniadze.80/"),
+    ("Darmowe",               "https://pleaks.st/forums/darmowe.93/"),
+    ("Sztuczna Inteligencja", "https://pleaks.st/forums/sztuczna-inteligencja.179/"),
+    ("Pieniadze",             "https://pleaks.st/forums/pieniadze.80/"),
 ]
 
 
@@ -30,7 +49,7 @@ def main():
         page = ctx.new_page()
 
         # ── 1. Logowanie ───────────────────────────────────────────────
-        print("[*] Przechodzę do strony logowania...")
+        print("[*] Logowanie...")
         page.goto("https://pleaks.st/login/", wait_until="domcontentloaded")
         page.wait_for_timeout(1500)
 
@@ -38,23 +57,27 @@ def main():
         page.fill("input[name='password']", HASLO)
         page.click("button[type='submit']")
         page.wait_for_timeout(3000)
-        print(f"[*] URL po haśle: {page.url}")
 
         if "two-step" in page.url:
             if not TOTP:
                 print("[!] Wymagany kod 2FA! Uruchom: python login_and_scrape.py <KOD>")
                 browser.close()
                 return
-            print(f"[*] Wpisuję kod 2FA: {TOTP}")
+            print(f"[*] Wpisuje kod 2FA: {TOTP}")
             page.fill("input[name='code']", TOTP)
             page.click("button[type='submit']")
             page.wait_for_timeout(3000)
-            print(f"[*] URL po 2FA: {page.url}")
 
-        page.screenshot(path="ss_logged.png")
+        # Sprawdz ban
+        content = page.content().lower()
+        if "zbanowany" in content or "banned" in content:
+            print("[!] KONTO ZBANOWANE - przerywam")
+            browser.close()
+            return
+
         logged = (
-            "logout" in page.content().lower() or
-            "wyloguj" in page.content().lower() or
+            "logout" in content or
+            "wyloguj" in content or
             page.query_selector("a[href*='logout']") is not None
         )
         print(f"[*] Zalogowany: {logged}")
@@ -63,13 +86,18 @@ def main():
             browser.close()
             return
 
-        # ── 2. Zbierz wątki z działów ──────────────────────────────────
+        # ── 2. Zapisz cookies ─────────────────────────────────────────
+        cookies = ctx.cookies()
+        with open("session_cookies.json", "w", encoding="utf-8") as f:
+            json.dump(cookies, f, ensure_ascii=False, indent=2)
+        print(f"[*] Cookies zapisane: {len(cookies)} sztuk")
+
+        # ── 3. Zbierz watki z dzialow ─────────────────────────────────
         all_threads = []
         for name, url in DZIALY:
-            print(f"\n[*] Dział: {name}")
+            print(f"\n[*] Dzial: {name}")
             page.goto(url, wait_until="domcontentloaded")
-            page.wait_for_timeout(2500)
-            page.screenshot(path=f"ss_{name.split()[0]}.png")
+            page.wait_for_timeout(2000)
 
             links = page.query_selector_all("a[href*='threads/']")
             for lnk in links:
@@ -77,11 +105,9 @@ def main():
                 text = (lnk.inner_text() or "").strip()
                 if text and len(text) > 5:
                     full = href if href.startswith("http") else f"https://pleaks.st{href}"
-                    # Pomiń podstrony wątku (/page-N, #post-N itp.)
                     if "/page-" not in full and "#" not in full:
                         all_threads.append({"url": full, "title": text, "section": name})
 
-            # Deduplikuj
             seen = set()
             deduped = []
             for t in all_threads:
@@ -89,55 +115,13 @@ def main():
                     seen.add(t["url"])
                     deduped.append(t)
             all_threads = deduped
-
             section_count = sum(1 for t in all_threads if t["section"] == name)
-            print(f"  Wątki w dziale: {section_count}")
+            print(f"  Watkow: {section_count}")
 
-        print(f"\n[*] Łącznie: {len(all_threads)} wątków")
+        print(f"\n[*] Lacznie: {len(all_threads)} watkow")
         with open("all_threads.json", "w", encoding="utf-8") as f:
             json.dump(all_threads, f, ensure_ascii=False, indent=2)
-
-        # ── 3. Czytaj 5 losowych wątków ────────────────────────────────
-        chosen = random.sample(all_threads, min(5, len(all_threads)))
-        results = []
-
-        for t in chosen:
-            print(f"\n[*] Otwieram: {t['title'][:70]}")
-            try:
-                page.goto(t["url"], wait_until="domcontentloaded", timeout=15000)
-                page.wait_for_timeout(2000)
-            except PWTimeout:
-                print("  [!] Timeout")
-                continue
-
-            posts = []
-            for sel in [".message-body .bbWrapper", ".bbWrapper", ".message-body", "[itemprop='text']"]:
-                els = page.query_selector_all(sel)
-                if els:
-                    for el in els[:6]:
-                        txt = (el.inner_text() or "").strip()
-                        if txt and len(txt) > 20:
-                            posts.append(txt[:600])
-                    if posts:
-                        break
-
-            if not posts:
-                body = page.inner_text("body")
-                lines = [l.strip() for l in body.split("\n") if l.strip() and len(l.strip()) > 30]
-                posts = ["\n".join(lines[3:15])]
-
-            results.append({
-                "url": t["url"],
-                "title": t["title"],
-                "section": t["section"],
-                "posts": posts[:4],
-            })
-            print(f"  Postów zebranych: {len(posts)}")
-
-        with open("threads_data.json", "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-
-        print(f"\n[✓] Zapisano {len(results)} wątków → threads_data.json")
+        print("[OK] Gotowe")
         browser.close()
 
 

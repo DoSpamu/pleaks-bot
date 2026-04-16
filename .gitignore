@@ -1,4 +1,9 @@
+.env
+docker-compose.portainer.yml
 session_cookies.json
+thread_styles.json
+autopost.lock
+posted_urls.json
 autopost_results.json
 autopost_log.txt
 all_threads.json

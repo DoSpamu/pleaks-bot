@@ -1,0 +1,25 @@
+services:
+  pleaks-bot:
+    build: .
+    image: pleaks-bot:latest
+    container_name: pleaks-bot
+    restart: "no"           # uruchamiaj ręcznie lub przez Portainer Scheduler
+
+    # WireGuard wymaga uprawnień sieciowych
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    env_file:
+      - .env
+
+    environment:
+      BOT_MODE: auto        # auto | preview
+
+    volumes:
+      # Persystentne pliki między uruchomieniami
+      - ./session_cookies.json:/app/session_cookies.json
+      - ./posted_urls.json:/app/posted_urls.json
+      - ./autopost_results.json:/app/autopost_results.json

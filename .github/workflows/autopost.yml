@@ -1,0 +1,99 @@
+name: pleaks autopost
+
+on:
+  schedule:
+    # Co 12 dni o 10:00 UTC
+    - cron: '0 10 */12 * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Tryb: auto (bez pytania) / preview (tylko podglad)'
+        required: false
+        default: 'auto'
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalacja zaleznosci
+        run: |
+          pip install playwright pyotp python-dotenv google-genai
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Pobierz cookies z cache
+        uses: actions/cache@v4
+        with:
+          path: session_cookies.json
+          key: pleaks-session-v1
+
+      - name: VPN up (WireGuard)
+        env:
+          WG_PRIVATE_KEY: ${{ secrets.WG_PRIVATE_KEY }}
+          WG_PUBLIC_KEY:  ${{ secrets.WG_PUBLIC_KEY }}
+          WG_ADDRESS:     ${{ secrets.WG_ADDRESS }}
+          WG_DNS:         ${{ secrets.WG_DNS }}
+          WG_ENDPOINT:    ${{ secrets.WG_ENDPOINT }}
+        run: |
+          sudo apt-get install -y wireguard-tools iproute2 > /dev/null 2>&1
+          sudo bash -c "cat > /etc/wireguard/wg0.conf << 'EOF'
+          [Interface]
+          PrivateKey = ${WG_PRIVATE_KEY}
+          Address = ${WG_ADDRESS}
+          DNS = ${WG_DNS}
+
+          [Peer]
+          PublicKey = ${WG_PUBLIC_KEY}
+          Endpoint = ${WG_ENDPOINT}
+          AllowedIPs = 0.0.0.0/0
+          PersistentKeepalive = 25
+          EOF"
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+          echo "IP po VPN: $(curl -s https://api.ipify.org)"
+
+      - name: Uruchom bota
+        env:
+          PLEAKS_EMAIL:        ${{ secrets.PLEAKS_EMAIL }}
+          PLEAKS_HASLO:        ${{ secrets.PLEAKS_HASLO }}
+          PLEAKS_TOTP_SECRET:  ${{ secrets.PLEAKS_TOTP_SECRET }}
+          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          MODE="${{ github.event.inputs.mode || 'auto' }}"
+          if [ "$MODE" = "preview" ]; then
+            python auto_generate_and_post.py --preview
+          else
+            python auto_generate_and_post.py --auto
+          fi
+
+      - name: VPN down
+        if: always()
+        run: sudo wg-quick down wg0 || true
+
+      - name: Zapisz cookies do cache
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: session_cookies.json
+          key: pleaks-session-v1
+
+      - name: Upload wynikow
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wyniki-${{ github.run_number }}
+          path: |
+            autopost_results.json
+            posted_urls.json
+          retention-days: 30
