@@ -3,7 +3,7 @@ services:
     build: .
     image: pleaks-bot:latest
     container_name: pleaks-bot
-    restart: unless-stopped
+    restart: "no"
 
     cap_add:
       - NET_ADMIN

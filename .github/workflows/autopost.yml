@@ -2,8 +2,8 @@ name: pleaks autopost
 
 on:
   schedule:
-    # Co 12 dni o 10:00 UTC
-    - cron: '0 10 */12 * *'
+    # Co 12 dni o 11:23 UTC (nieokragla godzina)
+    - cron: '23 11 */12 * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -36,6 +36,12 @@ jobs:
         with:
           path: session_cookies.json
           key: pleaks-session-v1
+
+      - name: Pobierz posted_urls z cache
+        uses: actions/cache@v4
+        with:
+          path: posted_urls.json
+          key: pleaks-posted-v1
 
       - name: VPN up (WireGuard)
         env:
@@ -87,6 +93,13 @@ jobs:
         with:
           path: session_cookies.json
           key: pleaks-session-v1
+
+      - name: Zapisz posted_urls do cache
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: posted_urls.json
+          key: pleaks-posted-v1
 
       - name: Upload wynikow
         if: always()
