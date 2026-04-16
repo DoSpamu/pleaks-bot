@@ -20,6 +20,7 @@ services:
 
     environment:
       BOT_MODE: auto        # auto | preview | manual
+      POSTS_TARGET: "2"     # 2 na pierwsze uruchomienie, potem 7
       VNC_PASSWORD: ""      # ustaw haslo do VNC (opcjonalnie)
 
     volumes:

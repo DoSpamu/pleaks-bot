@@ -31,7 +31,7 @@ GEMINI_KEY   = os.getenv("GEMINI_API_KEY", "")
 DISCORD_URL  = os.getenv("DISCORD_WEBHOOK_URL", "")
 
 POSTS_NEEDED = 5          # ile postow na cykl antypijawki
-POSTS_TARGET = 7          # robimy z nadwyzka
+POSTS_TARGET = int(os.getenv("POSTS_TARGET", "7"))   # nadpisz env dla warmup (np. 2)
 MAX_THREADS  = 20         # ile watkow scrapujemy do wyboru
 POSTED_LOG   = "posted_urls.json"  # historia - jakie URL juz odpisalismy
 
@@ -114,18 +114,24 @@ Tresc watku (posty innych):
 
 Napisz naturalna odpowiedz w tym watku:"""
 
-    try:
-        resp = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-        )
-        text = resp.text.strip().strip('"').strip("'")
-        if text.endswith("."):
-            text = text[:-1]
-        return text
-    except Exception as e:
-        print(f"  [!] Gemini blad: {e}")
-        return ""
+    for attempt in range(2):
+        try:
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=prompt,
+            )
+            text = resp.text.strip().strip('"').strip("'")
+            if text.endswith("."):
+                text = text[:-1]
+            if len(text) < 5:
+                print(f"  [!] Gemini zwrocil za krotki tekst: '{text}'")
+                return ""
+            return text
+        except Exception as e:
+            print(f"  [!] Gemini blad (prob {attempt+1}/2): {e}")
+            if attempt == 0:
+                time.sleep(5)
+    return ""
 
 # ─── DISCORD WEBHOOK ────────────────────────────────────────────────────────
 

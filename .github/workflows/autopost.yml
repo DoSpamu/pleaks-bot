@@ -75,6 +75,7 @@ jobs:
           PLEAKS_TOTP_SECRET:  ${{ secrets.PLEAKS_TOTP_SECRET }}
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          POSTS_TARGET:        ${{ secrets.POSTS_TARGET || '7' }}
         run: |
           MODE="${{ github.event.inputs.mode || 'auto' }}"
           if [ "$MODE" = "preview" ]; then
