@@ -473,11 +473,23 @@ def main():
 
         for i, post in enumerate(generated):
             ok = post_reply(page, post["url"], post["content"], post["title"])
-            results.append({"title": post["title"], "url": post["url"], "ok": ok})
+            results.append({"title": post["title"], "url": post["url"], "ok": ok, "content": post["content"]})
 
             if ok:
                 posted_urls.add(post["url"])
                 save_posted(posted_urls)
+                send_discord(
+                    f"✅ **[{i+1}/{len(generated)}] {post['section']}**\n"
+                    f"**{post['title'][:80]}**\n"
+                    f"> {post['content'][:200]}\n"
+                    f"<{post['url']}>"
+                )
+            else:
+                send_discord(
+                    f"❌ **[{i+1}/{len(generated)}] BLAD**\n"
+                    f"{post['title'][:80]}\n"
+                    f"<{post['url']}>"
+                )
 
             if i < len(generated) - 1:
                 delay = delays[i]
@@ -498,7 +510,10 @@ def main():
         json.dump(results, f, ensure_ascii=False, indent=2)
 
     if DISCORD_URL and not MODE_PREVIEW:
-        send_discord(f"pleaks.st — gotowe: {ok_count}/{len(results)} postow wyslanych")
+        send_discord(
+            f"**pleaks.st — sesja zakonczona**\n"
+            f"Wyslano: **{ok_count}/{len(results)}** postow"
+        )
 
 
 if __name__ == "__main__":
