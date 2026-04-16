@@ -3,23 +3,27 @@ services:
     build: .
     image: pleaks-bot:latest
     container_name: pleaks-bot
-    restart: "no"           # uruchamiaj ręcznie lub przez Portainer Scheduler
+    restart: "no"
 
-    # WireGuard wymaga uprawnień sieciowych
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
     devices:
       - /dev/net/tun:/dev/net/tun
 
+    ports:
+      - "6080:6080"    # noVNC web — http://localhost:6080/vnc.html
+      - "5900:5900"    # raw VNC (opcjonalnie)
+
     env_file:
       - .env
 
     environment:
-      BOT_MODE: auto        # auto | preview
+      BOT_MODE: auto        # auto | preview | manual
+      POSTS_TARGET: "2"     # 2 na pierwsze uruchomienie, potem 7
+      VNC_PASSWORD: ""      # ustaw haslo do VNC (opcjonalnie)
 
     volumes:
-      # Persystentne pliki między uruchomieniami
       - ./session_cookies.json:/app/session_cookies.json
       - ./posted_urls.json:/app/posted_urls.json
       - ./autopost_results.json:/app/autopost_results.json

@@ -1,9 +1,8 @@
 name: pleaks autopost
 
 on:
-  schedule:
-    # Co 12 dni o 10:00 UTC
-    - cron: '0 10 */12 * *'
+  # schedule:
+  #   - cron: '23 11 */12 * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -27,15 +26,21 @@ jobs:
 
       - name: Instalacja zaleznosci
         run: |
-          pip install playwright pyotp python-dotenv google-genai
-          playwright install chromium
-          playwright install-deps chromium
+          pip install patchright pyotp python-dotenv google-genai
+          patchright install chromium
+          patchright install-deps chromium
 
       - name: Pobierz cookies z cache
         uses: actions/cache@v4
         with:
           path: session_cookies.json
           key: pleaks-session-v1
+
+      - name: Pobierz posted_urls z cache
+        uses: actions/cache@v4
+        with:
+          path: posted_urls.json
+          key: pleaks-posted-v1
 
       - name: VPN up (WireGuard)
         env:
@@ -69,6 +74,7 @@ jobs:
           PLEAKS_TOTP_SECRET:  ${{ secrets.PLEAKS_TOTP_SECRET }}
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          POSTS_TARGET:        ${{ secrets.POSTS_TARGET || '7' }}
         run: |
           MODE="${{ github.event.inputs.mode || 'auto' }}"
           if [ "$MODE" = "preview" ]; then
@@ -87,6 +93,13 @@ jobs:
         with:
           path: session_cookies.json
           key: pleaks-session-v1
+
+      - name: Zapisz posted_urls do cache
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: posted_urls.json
+          key: pleaks-posted-v1
 
       - name: Upload wynikow
         if: always()

@@ -5,10 +5,13 @@ Skrypt do przeglądania forum pleaks.st, zbierania i czytania wątków.
 import json
 import random
 import time
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from patchright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from dotenv import load_dotenv
+load_dotenv()
+import os
 
-EMAIL = "dospamu.pl@gmail.com"
-HASLO = "Zalas539!"
+EMAIL = os.getenv("PLEAKS_EMAIL", "")
+HASLO = os.getenv("PLEAKS_HASLO", "")
 
 DZIALY = [
     ("Darmowe", "https://pleaks.st/#darmowe.93"),
@@ -249,7 +252,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--lang=pl-PL"])
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             locale="pl-PL",
             viewport={"width": 1280, "height": 800}
         )
